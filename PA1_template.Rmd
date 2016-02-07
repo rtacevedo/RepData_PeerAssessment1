@@ -1,0 +1,137 @@
+---
+title: "Reproducible Research - Project 1"
+author: "Rebecca Acevedo"
+date: "February 2, 2016"
+output: html_document
+---
+
+##Introduction
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This report makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+### Initial Set-up
+
+Packages required to run the analysis.
+```{r setup}
+library(lattice)
+library(devtools)
+devtools::source_gist("4959237")
+```
+
+Load and Pre-Process the data
+```{r data}
+stepdata <- read.csv("activity.csv")
+stepdata$date <- as.Date(stepdata$date)
+summary(stepdata)
+```
+### What is mean total number of steps taken per day?
+```{r hist}
+stepsum <- aggregate(steps ~ date, stepdata, sum, na.rm = TRUE)
+hist(stepsum$steps, 
+     main = "Frequency of Total Steps by Interval",
+     xlab = "Total Steps per Day")
+```
+
+The Mean total number of steps per day is:
+```{r mean}
+mean(stepsum$steps, na.rm = TRUE)
+```
+The Median total number of steps per day is:
+```{r median}
+median(stepsum$steps, na.rm = TRUE)
+```
+
+## What is the average daily activity pattern?
+```{r stepint}
+stepint <- aggregate(steps ~ interval, stepdata, mean , na.rm = TRUE)
+with(stepint, plot(interval, steps, 
+                   type = "l"))
+summary(stepint)
+```
+The results show that the maximum number of steps per interval is 206.17, which occurs at interval 835
+```{r}
+
+stepint[which.max(stepint$steps),]
+
+```
+## Identifying & Imputing Missing Values
+
+### Determine Missing values
+Number of missing data values for steps
+```{r stepmvs}
+sum(is.na(stepdata$steps))
+```
+Number of missing data values for intervals
+```{r intmvs}
+sum(is.na(stepdata$interval))
+```
+Number of missing data values for dates
+```{r datemv}
+sum(is.na(stepdata$date))
+```
+
+### Fill in missing data using mean for that interval
+
+```{r nafill}
+
+newstepdata <- FillIn(D1=stepdata, D2=stepint, Var1 = "steps", Var2 = "steps", KeyVar = "interval")
+```
+### Histogram of total steps 
+In order to examine the total steps per day, a new dataset of the sums of the steps by day was created for graphing purposes. 
+```{r stephist}
+newstepsum <- aggregate(steps ~ date, newstepdata, sum, na.rm = TRUE)
+
+par(mar=c(5.1,4.1,4.1,2.1),mfrow = c(1,1) )
+hist(newstepsum$steps, 
+     main = "Frequency of Total Steps Per Day", 
+     xlab = "Total Steps")
+```
+The Mean total number of steps is:
+```{r newstepmean}
+mean(newstepsum$steps, na.rm = TRUE)
+```
+The Median total number of steps is:
+```{r newstepmed}
+median(newstepsum$steps, na.rm = TRUE)
+```
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+In order to evaluate the whether there is a difference between the number of steps taken on a weekend, and on a weekday, by interval, a field indicating the day type was added to the data frame.
+
+```{r addwe}
+
+newstepdata$day <- weekdays(newstepdata$date, abbreviate = TRUE)
+newstepdata$isweekend <- grepl("S(at|un)", newstepdata$day)
+newstepdata$isweekend <- gsub("TRUE", "weekend", newstepdata$isweekend, perl=TRUE)
+newstepdata$isweekend <- gsub("FALSE", "weekday", newstepdata$isweekend, perl=TRUE)
+
+## weekend & weekday subsets
+
+weekendsub <- subset(newstepdata, grepl("S(at|un)", day), interval:day)
+westepint <- aggregate(steps ~ interval, 
+                       weekendsub, mean , na.rm = TRUE)
+westepint$isweekend <- "weekend"
+weekdaysub <- subset(newstepdata, !grepl("S(at|un)", day), interval:day)
+wdstepint <- aggregate(steps ~ interval, 
+                       weekdaysub, mean , na.rm = TRUE)
+wdstepint$isweekend <- "weekday"
+
+## remerge data to average subset
+
+mergeddata <- rbind(westepint,wdstepint)
+```
+
+Once the data was ready, a line plot was created to examine the difference between the day types.  As the graph shows, the number of steps during the week was substantially lower during the middle of the day than it was during the weekends.
+
+```{r compplot}
+xyplot(steps~interval|isweekend, 
+       data=mergeddata,
+       layout=c(1,2), 
+       type ='l', 
+       main= "Mean Steps Per Interval", 
+       xlab= "Interval", 
+       ylab="Steps")
+```
